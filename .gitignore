@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.DS_Store
+*.mp4
+*.mov
+*.wav
+*.webm
+work/

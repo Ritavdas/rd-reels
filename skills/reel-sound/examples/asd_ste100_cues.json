@@ -1,0 +1,12 @@
+[
+  {"id": "hook_tap", "family": "confirm", "at": {"beat": "face_hook", "offset": 15}, "frames": 6, "gap_db": 12,
+   "reason": "Hook. The one tap in the reel lands the prompt the video is about."},
+  {"id": "hangar_jcut", "family": "ambience", "at": {"beat": "usaf_hands", "offset": 4}, "frames": 141, "lead": 12,
+   "reason": "Off-screen hangar air and distant metal start 0.4 s before the cut and fade under the tweet."},
+  {"id": "highlight", "family": "marker", "at": {"beat": "tweet", "offset": 14}, "frames": 16, "pan": -0.35, "pan_end": 0.35, "gap_db": 13,
+   "reason": "Evidence. The marker travels left to right with the highlight."},
+  {"id": "count_up", "family": "counter", "at": {"beat": "bars", "offset": 19}, "frames": 25, "gap_db": 13,
+   "reason": "Proof. 2,400 to 1,300, the only ticks in the reel."},
+  {"id": "eighty_bloom", "family": "bloom", "at": {"beat": "fix", "offset": 18}, "frames": 14, "gap_db": 12,
+   "reason": "Resolution. A soft open bloom for the 80% fix."}
+]
