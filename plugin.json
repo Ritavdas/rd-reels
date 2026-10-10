@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "rd-reels",
-  "description": "Script, edit, sound-design and review 45-60 second vertical tech explainer reels from a talking-head take, screen recordings, b-roll and article screenshots.",
-  "version": "0.1.0",
+  "description": "Script, edit, mix dialogue and music, sound-design and review 45-60 second vertical tech explainer reels with measured audio inspection.",
+  "version": "0.2.0",
   "author": { "name": "Ritav Das" },
   "repository": "https://github.com/Ritavdas/rd-reels",
   "license": "UNLICENSED",

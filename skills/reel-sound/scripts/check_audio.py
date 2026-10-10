@@ -83,6 +83,15 @@ def pcm_float(samples):
     return samples.astype(np.float64)
 
 
+def stereo_pcm(samples):
+    samples = pcm_float(samples)
+    if samples.ndim == 1:
+        return np.repeat(samples[:, None], 2, axis=1) / math.sqrt(2)
+    if samples.ndim == 2 and samples.shape[1] == 2:
+        return samples
+    raise ValueError("Audio must be mono or stereo")
+
+
 def baseline(path, output):
     report = {
         "source": str(path.resolve()),
@@ -167,7 +176,7 @@ def verify(final_path, baseline_path, manifest_path, output):
     count = int(round(expected_duration * RATE))
     assert len(effects) == len(mix) == count
     gain = 10 ** (manifest["constant_gain_db"] / 20)
-    voice_stereo = np.repeat(pcm_float(voice[:count])[:, None], 2, axis=1) / math.sqrt(2)
+    voice_stereo = stereo_pcm(voice[:count])
     reconstructed = (voice_stereo + effects.astype(np.float64)) * gain
     error = float(np.max(np.abs(mix.astype(np.float64) - reconstructed)))
     gate("unchanged_dialogue_pcm", error < 2e-6, {"maximum_error": error, "constant_gain_db": manifest["constant_gain_db"]})

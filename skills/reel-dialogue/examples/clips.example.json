@@ -1,0 +1,7 @@
+{
+  "clips": [
+    {"id": "01", "path": "source_a.mp4", "start": 2.6, "in": 67.95, "out": 69.45},
+    {"id": "02", "path": "source_a.mp4", "start": 3.93, "in": 71.22, "out": 72.28},
+    {"id": "03", "path": "source_b.mp4", "start": 4.87, "in": 60.74, "out": 62.66}
+  ]
+}

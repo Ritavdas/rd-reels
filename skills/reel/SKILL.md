@@ -44,9 +44,20 @@ Change only what the user asked for. Render the preview again after each round.
 
 ## 5. Final (gate 3)
 1. Full render (1080x1920).
-2. Sound with the reel-sound skill: cue plan, design, baseline, verify.
-3. Report the final path, duration, loudness, cue list with reasons, and the verify verdict.
-Only say "done" when verify is VERIFIED.
+2. If the reel has a music bed and/or more than one raw dialogue clip, mix dialogue first with
+   reel-dialogue: level each clip, remove competing song vocals, carve EQ and duck music.
+   Keep the exact picture duration and check sync after muxing. Preserve the approved audio
+   as the fixed mix for effects; do not fall back to the raw voice in the sound timeline.
+3. Sound with reel-sound: cue plan, baseline on the approved audio/video, design, verify.
+   Keep about five distinct story-beat cues and deliberate silence.
+4. Inspect the actual final video: transcription against fixed correct words, speech/music
+   gap where applicable, loudness/true peak, clicks/jumps/sync, waveform and spectrogram.
+   Keep comparison references fixed. Processing upgrades must beat the current best with
+   reel-dialogue's gate; missing evidence or a cleaner score alone is not approval.
+5. Report the final path, duration, loudness, cue list with reasons, and technical verdict.
+   Keep failed experiments in the run log. DeepFilterNet3 and BS-RoFormer are not defaults.
+Only report technical completion when verify is VERIFIED and word/sync checks pass.
+The user's listening remains the final check for natural sound and music fit.
 
 ## 6. Review (only on request)
 Use the reel-review skill. Ask before uploading anything.
@@ -54,3 +65,5 @@ Use the reel-review skill. Ask before uploading anything.
 ## Files in the output folder
 `<name>_preview.mp4`, `<name>.mp4` (picture and voice), `<name>_final.mp4` (with sound, the deliverable), `<name>.timeline.json`, `<name>_final_sfx/`, `cues.json`, `verification.json`, `script.md`, `build_<name>.py`, `words.json`.
 Keep earlier versions as `<name>_v2.mp4` and so on. Never overwrite a version the user has seen.
+For audio inspection, keep `truth.json`, `windows.json`, baseline/final measurement reports,
+`listen_map.png`, dialogue/music stems, and the processing experiment log.

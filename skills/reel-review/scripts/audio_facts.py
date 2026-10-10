@@ -43,8 +43,11 @@ def facts(manifest_path, at=None):
 
 
 def spectrogram(video, start, end, out):
+    if not math.isfinite(start) or not math.isfinite(end) or start < 0 or end <= start:
+        raise ValueError("Spectrogram range must be finite, non-negative and increasing")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(start), "-t", str(end - start), "-i", video,
-                    "-lavfi", "showspectrumpic=s=1200x500:legend=1:color=intensity:scale=log", out], check=True)
+                    "-lavfi", "showspectrumpic=s=1200x500:legend=1:color=intensity:scale=log:fscale=log",
+                    "-frames:v", "1", out], check=True)
     print(f"wrote {out}")
 
 

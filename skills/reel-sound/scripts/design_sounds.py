@@ -26,7 +26,7 @@ import numpy as np
 from scipy import signal
 from scipy.io import wavfile
 
-from check_audio import FRAME_RATE, RATE, inspect_bank, level, pcm_float
+from check_audio import FRAME_RATE, RATE, inspect_bank, level, stereo_pcm
 
 FFMPEG = "/opt/homebrew/bin/ffmpeg"
 ROOM = {"rt60": 0.32, "wet": 0.22}
@@ -212,9 +212,15 @@ def build(plan_path, timeline_path, out_dir, name, material="digital", allow_rep
     duration = timeline["duration_seconds"]
     count = round(duration * RATE)
     rate, voice = wavfile.read(timeline["voice"])
-    if rate != RATE or voice.ndim != 1 or len(voice) < count:
-        raise ValueError("The voice must be mono, 48 kHz, and cover the full reel")
-    voice_stereo = np.repeat(pcm_float(voice[:count])[:, None], 2, axis=1) / math.sqrt(2)
+    if rate != RATE or len(voice) < count:
+        raise ValueError("The fixed audio must be 48 kHz and cover the full reel")
+    voice_stereo = stereo_pcm(voice[:count])
+    reference = voice_stereo
+    if timeline.get("dialogue"):
+        reference_rate, dialogue = wavfile.read(timeline["dialogue"])
+        if reference_rate != RATE or len(dialogue) < count:
+            raise ValueError("The dialogue reference must be 48 kHz and cover the full reel")
+        reference = stereo_pcm(dialogue[:count])
     effects = np.zeros((count, 2), dtype=np.float64)
     records = []
     for cue in cues:
@@ -229,7 +235,7 @@ def build(plan_path, timeline_path, out_dir, name, material="digital", allow_rep
         stereo = np.column_stack((raw * np.cos(angle), raw * np.sin(angle)))
         window_start = max(start, scheduled_hit - round(RATE * 0.060))
         window_end = min(end, scheduled_hit + round(RATE * 0.100))
-        reference_db = level(voice_stereo[window_start:window_end])
+        reference_db = level(reference[window_start:window_end])
         if cue.family == "ambience":
             gain_db = AMBIENCE["level_dbfs"] - level(stereo)
         else:
