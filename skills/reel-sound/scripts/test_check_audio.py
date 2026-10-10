@@ -1,4 +1,7 @@
 import json
+import contextlib
+import io
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,7 +9,8 @@ from pathlib import Path
 import numpy as np
 from scipy.io import wavfile
 
-from check_audio import RATE, inspect_bank, pcm_float
+from check_audio import FFMPEG, RATE, baseline, inspect_bank, pcm_float, stereo_pcm, verify
+from design_sounds import build
 
 
 class AudioGateTests(unittest.TestCase):
@@ -81,6 +85,64 @@ class AudioGateTests(unittest.TestCase):
     def test_integer_pcm_is_normalized(self):
         actual = pcm_float(np.array([-32768, 0, 16384], dtype=np.int16))
         np.testing.assert_allclose(actual, [-1.0, 0.0, 0.5], rtol=0, atol=0)
+
+    def test_stereo_mix_preserves_both_channels(self):
+        samples = np.array([[0.1, 0.3], [-0.2, 0.4]], dtype=np.float32)
+        np.testing.assert_array_equal(stereo_pcm(samples), samples)
+
+    def test_mono_keeps_existing_equal_power_mapping(self):
+        samples = np.array([0.2, -0.1], dtype=np.float32)
+        expected = np.repeat(samples.astype(np.float64)[:, None], 2, axis=1) / np.sqrt(2)
+        np.testing.assert_array_equal(stereo_pcm(samples), expected)
+
+    def test_more_than_two_channels_is_rejected(self):
+        with self.assertRaises(ValueError):
+            stereo_pcm(np.zeros((10, 3)))
+
+
+class StereoPipelineTests(unittest.TestCase):
+    def test_effects_preserve_stereo_music_mix_and_verify_encoded_video(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            time = np.arange(3 * RATE) / RATE
+            fixed = np.column_stack((0.2 * np.sin(2 * np.pi * 440 * time),
+                                     0.15 * np.sin(2 * np.pi * 660 * time))).astype(np.float32)
+            raw = root / "raw.wav"
+            wavfile.write(raw, RATE, fixed)
+            mix = root / "fixed.wav"
+            subprocess.run([
+                FFMPEG, "-v", "error", "-i", str(raw), "-af", "loudnorm=I=-14:TP=-2:LRA=11",
+                "-ar", str(RATE), "-c:a", "pcm_f32le", str(mix),
+            ], check=True)
+            picture = root / "picture.mp4"
+            subprocess.run([
+                FFMPEG, "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=64x64:r=30:d=3",
+                "-i", str(mix), "-c:v", "libx264", "-c:a", "aac", "-b:a", "256k", "-t", "3",
+                str(picture),
+            ], check=True)
+            timeline = root / "timeline.json"
+            timeline.write_text(json.dumps({
+                "voice": str(mix), "dialogue": str(raw), "picture": str(picture),
+                "duration_seconds": 3, "quiet_windows": [{"label": "CTA", "start": 2, "end": 3}],
+            }))
+            plan = root / "cues.json"
+            plan.write_text(json.dumps([{
+                "id": "proof", "family": "tap", "at": {"frame": 30},
+                "frames": 8, "gap_db": 13, "reason": "Mark the proof beat",
+            }]))
+            old = root / "baseline.json"
+            report = root / "verification.json"
+            with contextlib.redirect_stdout(io.StringIO()):
+                baseline(picture, old)
+                final, manifest = build(plan, timeline, root, "final")
+                verify(final, old, manifest, report)
+            result = json.loads(report.read_text())
+            self.assertEqual(result["verdict"], "VERIFIED")
+            _, rendered = wavfile.read(manifest.parent / "mix.wav")
+            _, effects = wavfile.read(manifest.parent / "effects.wav")
+            _, original = wavfile.read(mix)
+            gain = 10 ** (-0.35 / 20)
+            np.testing.assert_allclose(rendered / gain - effects, original, atol=5e-8)
 
 
 if __name__ == "__main__":

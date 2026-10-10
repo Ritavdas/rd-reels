@@ -19,7 +19,18 @@ Only run when the user asks. Every upload needs the user's approval in this conv
    - `scripts/audio_facts.py <manifest> --at <seconds>` for a specific moment
    - `scripts/audio_facts.py --spectrogram <video> <start> <end> <png>`, then look at the image
    For picture claims, extract the frame at that time and look at it.
+   For claims about buried words, clarity or music masking, use reel-dialogue's `measure.py`
+   on the actual rendered video with fixed correct text, identical windows/ASR and aligned
+   stems. Compare WER with SQUIM, never SQUIM alone. ESTOI comparisons need one fixed clean
+   dialogue reference, not a newly denoised reference per candidate.
+   Use `listen_map.py` for the waveform, momentary loudness, log-mel spectrogram and
+   speech-band masking map. A plot can locate overlap or a transient, not prove natural sound.
+   Check cue levels against the waveform/manifest and technical report, not model adjectives.
+   Use these local checks without uploading; an outside review still requires approval.
 6. **Report** a table: claim, verdict (true, false, can't tell), evidence. Suggest changes only from true claims. Ask before acting on any of them.
 
 ## Known failure
-In the first reel, Gemini praised a "thud on Why?" that does not exist. That window was silent. Treat confident audio praise as unverified until checked.
+In the first reel, Gemini praised a "thud on Why?" that does not exist. That window was silent.
+It also made incorrect claims about effect levels. Treat sound descriptions as unverified,
+not as a pass/fail gate. Classify unsupported claims as "can't tell"; do not change audio on
+their strength. Listening by the user remains the final check for taste and natural sound.
