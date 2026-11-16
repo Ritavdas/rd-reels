@@ -24,6 +24,7 @@ that mix. Preserve the original picture duration, beat frames and quiet windows.
 - Pan with the picture. If a highlight sweeps left to right, set `pan` and `pan_end`.
 - Closer camera means a more detailed sound. Distant things get darker and more reverb.
 - Write a one-line reason for every cue. No reason, no cue.
+- To pick the family and frame for a visual event (swipe, pop-up, count, reveal), read `references/sfx-placement.md`.
 
 ## Families
 confirm, tap, reject, release, slide, marker, counter, bloom, ambience. All are synthesized here. No downloaded effects.
