@@ -10,7 +10,7 @@ import numpy as np
 from scipy.io import wavfile
 
 from check_audio import FFMPEG, RATE, baseline, inspect_bank, pcm_float, stereo_pcm, verify
-from design_sounds import build
+from design_sounds import build, resolve
 
 
 class AudioGateTests(unittest.TestCase):
@@ -143,6 +143,56 @@ class StereoPipelineTests(unittest.TestCase):
             _, original = wavfile.read(mix)
             gain = 10 ** (-0.35 / 20)
             np.testing.assert_allclose(rendered / gain - effects, original, atol=5e-8)
+
+    def test_real_sound_files_peak_on_their_frame_and_verify(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            time = np.arange(3 * RATE) / RATE
+            voice = np.column_stack((0.2 * np.sin(2 * np.pi * 440 * time),) * 2).astype(np.float32)
+            raw = root / "raw.wav"
+            wavfile.write(raw, RATE, voice)
+            mix = root / "fixed.wav"
+            subprocess.run([FFMPEG, "-v", "error", "-i", str(raw), "-af", "loudnorm=I=-14:TP=-2:LRA=11",
+                            "-ar", str(RATE), "-c:a", "pcm_f32le", str(mix)], check=True)
+            picture = root / "picture.mp4"
+            subprocess.run([FFMPEG, "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=64x64:r=30:d=3",
+                            "-i", str(mix), "-c:v", "libx264", "-c:a", "aac", "-b:a", "256k", "-t", "3", str(picture)], check=True)
+            timeline = root / "timeline.json"
+            timeline.write_text(json.dumps({"voice": str(mix), "picture": str(picture), "duration_seconds": 3, "quiet_windows": []}))
+            # A 44.1 kHz stereo riser that builds for 1 s, and an impact that hits 50 ms in.
+            sfx = root / "sfx"
+            sfx.mkdir()
+            rng = np.random.default_rng(3)
+            n = 44100
+            riser = (rng.standard_normal(n) * np.linspace(0, 1, n) ** 3).astype(np.float32)
+            wavfile.write(sfx / "riser.wav", 44100, np.column_stack((riser, riser)))
+            impact = np.zeros(n // 2, dtype=np.float32)
+            impact[2205:] = (rng.standard_normal(n // 2 - 2205) * np.exp(-np.arange(n // 2 - 2205) / 3000)).astype(np.float32)
+            wavfile.write(sfx / "impact.wav", 44100, impact)
+            plan = root / "cues.json"
+            plan.write_text(json.dumps([
+                {"id": "build", "family": "riser", "file": "sfx/riser.wav", "source": "test", "at": {"frame": 45}, "gap_db": 10, "reason": "Build into the reveal"},
+                {"id": "hit", "family": "impact", "file": "sfx/impact.wav", "source": "test", "license": "CC0", "at": {"frame": 70}, "gap_db": 8, "reason": "Flash cut"},
+            ]))
+            old = root / "baseline.json"
+            report = root / "verification.json"
+            with contextlib.redirect_stdout(io.StringIO()):
+                baseline(picture, old)
+                final, manifest = build(plan, timeline, root, "final")
+                verify(final, old, manifest, report)
+            self.assertEqual(json.loads(report.read_text())["verdict"], "VERIFIED")
+            cues = {c["id"]: c for c in json.loads(manifest.read_text())["cues"]}
+            self.assertLess(cues["build"]["start_seconds"], 45 / 30 - 0.8)  # the build starts well before the reveal
+            self.assertAlmostEqual(cues["hit"]["start_seconds"], 70 / 30 - 0.05, delta=0.01)
+            self.assertEqual(cues["hit"]["license"], "CC0")
+
+    def test_file_cue_without_source_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            wavfile.write(root / "pop.wav", RATE, np.ones(RATE // 10, dtype=np.float32) * 0.5)
+            plan = [{"id": "pop", "family": "pop", "file": "pop.wav", "at": {"frame": 10}}]
+            with self.assertRaisesRegex(ValueError, "source"):
+                resolve(plan, {}, root)
 
 
 if __name__ == "__main__":

@@ -119,7 +119,9 @@ def inspect_bank(manifest_path):
         kernel = np.ones(round(RATE * 0.004)) / round(RATE * 0.004)
         energy = np.convolve(np.mean(np.square(samples.astype(np.float64)), axis=1), kernel, mode="same")
         observed_hit = int(np.argmax(energy))
-        if cue.get("family") == "ambience":
+        if cue.get("family") == "ambience" and cue.get("source_file"):
+            pass  # a recorded bed has no single hit; it is placed by its lead before the cut
+        elif cue.get("family") == "ambience":
             assert 0 <= observed_hit - cue["hit_sample"] <= round(0.08 * RATE), f"{cue['id']}: cut clink is not the loudest moment"
         else:
             assert abs(observed_hit - cue["hit_sample"]) <= 16, f"{cue['id']}: declared hit misses the waveform"

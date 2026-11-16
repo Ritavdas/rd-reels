@@ -12,7 +12,7 @@ preview, final render, dialogue/music mixing when needed, effects, and final aud
 | `reel-script` | Hook, one caveat, sourced facts, 130-170 words, teleprompter version. |
 | `reel-edit` | The reelkit library: graded face, beat helpers (doc card, bars, verdict, chat test...), captions, timeline.json. |
 | `reel-dialogue` | Per-clip speech leveling, Demucs vocal removal, EQ and music ducking; fixed-text transcription, clarity estimates, loudness and visual masking checks. Runs before effects. |
-| `reel-sound` | About 5 synthesized story-beat cues, distinct families, J-cut ambience and deliberate silence; preserves the approved mono/stereo mix and inspects the final encoded audio. |
+| `reel-sound` | About 5 story-beat cues from real sound files (riser, whoosh, impact...) or synthesized families, distinct families, J-cut ambience and deliberate silence; preserves the approved mono/stereo mix and inspects the final encoded audio. |
 | `reel-review` | On request only: outside review, then fact-check audio claims against cues, waveforms, transcripts and measured masking. Model praise is not an audio gate. |
 
 Defaults live in `skills/reel/template.md` and `skills/reel-edit/brand.json`.

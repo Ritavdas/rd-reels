@@ -1,6 +1,6 @@
 ---
 name: reel-sound
-description: Spot and design a few original sound effects for a finished reel picture, mix them under the voice, and prove the mix with technical checks. Use for "add sound", "sound design this reel", "the sounds feel AI", or as the sound step of the reel skill. Needs the <name>.mp4 and <name>.timeline.json from reel-edit.
+description: Spot a few sound effects for a finished reel picture (real sound files or synthesized cues), mix them under the voice, and prove the mix with technical checks. Use for "add sound", "sound design this reel", "the sounds feel AI", or as the sound step of the reel skill. Needs the <name>.mp4 and <name>.timeline.json from reel-edit.
 ---
 
 # Reel sound
@@ -24,11 +24,18 @@ that mix. Preserve the original picture duration, beat frames and quiet windows.
 - Pan with the picture. If a highlight sweeps left to right, set `pan` and `pan_end`.
 - Closer camera means a more detailed sound. Distant things get darker and more reverb.
 - Write a one-line reason for every cue. No reason, no cue.
-- To pick the family and frame for a visual event (swipe, pop-up, count, reveal), read `references/sfx-placement.md`.
+- To pick the sound and frame for a visual event (swipe, pop-up, count, reveal), read `references/sfx-placement.md`.
 
 ## Families
-confirm, tap, reject, release, slide, marker, counter, bloom, ambience. All are synthesized here. No downloaded effects.
-`--material digital` (default) or `paper` changes the timbre of the whole set.
+Two kinds of cue can be mixed in one plan:
+- **Real sound files** for whooshes, risers, impacts, glitches, typing, pops, paper and room tone.
+  Prefer these when a recorded sound reads better than a synthesized one. Get them from Openverse
+  (openverse.org, check the license), earshot, or Ritav's own library. The family is a free label.
+- **Synthesized families**: confirm, tap, reject, release, slide, marker, counter, bloom, ambience.
+  `--material digital` (default) or `paper` changes their timbre. Use them when no good file exists.
+
+Every file cue records its `source` and `license` in the manifest. Do not use a file whose license
+does not allow use in a posted reel.
 
 ## Cue plan
 Write `<out>/cues.json`. See `examples/asd_ste100_cues.json`.
@@ -36,6 +43,13 @@ Write `<out>/cues.json`. See `examples/asd_ste100_cues.json`.
 {"id": "count_up", "family": "counter", "at": {"beat": "bars", "offset": 19}, "frames": 25, "gap_db": 13, "reason": "..."}
 ```
 `at` is `{"beat": name, "offset": frames}`, `{"mark": name, "offset": frames}`, or `{"frame": n}`. `gap_db` is how far under the voice the cue sits (6 to 13). Ambience also takes `lead` (frames before the cut).
+
+A real file cue swaps `frames` for `file` (path relative to `cues.json`), `source`, and optional `license` and `trim` (`[start_s, end_s]`):
+```json
+{"id": "reveal_build", "family": "riser", "file": "sfx/riser_2s.wav", "source": "https://openverse.org/audio/...", "license": "CC0", "at": {"beat": "fix", "offset": 0}, "gap_db": 10, "reason": "..."}
+```
+The file's loudest moment lands on the `at` frame, so a riser builds into it and an impact hits on it.
+Files are folded to mono and panned like synthesized cues. To pick the sound and frame for each visual event, read `references/sfx-placement.md`.
 
 Show the cue table (time, family, reason) to the user before rendering if they asked to see sound choices.
 

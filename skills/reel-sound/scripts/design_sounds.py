@@ -8,7 +8,11 @@ Cue plan (JSON list). Each cue:
   {"id": "hook_tap", "family": "confirm", "at": {"beat": "face_hook", "offset": 15},
    "frames": 6, "pan": 0.0, "pan_end": null, "gap_db": 12, "reason": "Hook lands the prompt."}
 "at" is either {"beat": NAME, "offset": FRAMES} (offset from the beat start), {"mark": NAME, "offset": FRAMES},
-or {"frame": N}. Families: confirm, tap, reject, release, slide, marker, counter, bloom, ambience.
+or {"frame": N}. Synthesized families: confirm, tap, reject, release, slide, marker, counter, bloom, ambience.
+A cue with "file" plays a real sound-effect file instead (any format ffmpeg reads; path relative to the plan).
+Its family is a free label such as whoosh, riser, impact, glitch, typing or pop, and "frames" is ignored.
+The file's loudest moment lands on the "at" frame, so a riser builds into it and an impact hits on it.
+File cues need "source" (URL or library name); add "license" when known. Optional "trim": [start_s, end_s].
 For "ambience" (an off-screen world-sound J-cut) the hit is the cut frame, "frames" is total length, and
 "lead" (frames, default 12) is how early it starts before the cut.
 
@@ -32,6 +36,7 @@ FFMPEG = "/opt/homebrew/bin/ffmpeg"
 ROOM = {"rt60": 0.32, "wet": 0.22}
 AMBIENCE = {"rt60": 1.1, "wet": 0.55, "lowpass_hz": 2800, "level_dbfs": -40.0, "lead_frames": 12}
 FAMILIES = ("confirm", "tap", "reject", "release", "slide", "marker", "counter", "bloom", "ambience")
+HIT_WINDOW_SECONDS = 0.004
 
 
 @dataclass(frozen=True)
@@ -45,9 +50,13 @@ class Cue:
     reason: str
     pan_end: float | None = None
     lead_frames: int = AMBIENCE["lead_frames"]
+    file: str | None = None
+    source: str | None = None
+    license: str | None = None
+    trim: tuple | None = None
 
 
-def resolve(plan, timeline):
+def resolve(plan, timeline, plan_dir=Path(".")):
     cues = []
     for c in plan:
         where = c["at"]
@@ -58,10 +67,19 @@ def resolve(plan, timeline):
         else:
             base = 0
         hit = base + int(where.get("offset", where.get("frame", 0)))
-        if c["family"] not in FAMILIES:
-            raise ValueError(f"{c['id']}: unknown family {c['family']}")
-        cues.append(Cue(c["id"], c["family"], hit, int(c["frames"]), float(c.get("pan", 0.0)), float(c.get("gap_db", 12)),
-                        c.get("reason", ""), c.get("pan_end"), int(c.get("lead", AMBIENCE["lead_frames"]))))
+        file = None
+        if c.get("file"):
+            file = Path(c["file"]).expanduser()
+            file = file if file.is_absolute() else Path(plan_dir) / file
+            if not file.is_file():
+                raise ValueError(f"{c['id']}: sound file not found: {file}")
+            if not c.get("source"):
+                raise ValueError(f"{c['id']}: file cues need a 'source' (URL or library name)")
+        elif c["family"] not in FAMILIES:
+            raise ValueError(f"{c['id']}: unknown family {c['family']} (use a synthesized family or give a 'file')")
+        cues.append(Cue(c["id"], c["family"], hit, int(c.get("frames", 0)), float(c.get("pan", 0.0)), float(c.get("gap_db", 12)),
+                        c.get("reason", ""), c.get("pan_end"), int(c.get("lead", AMBIENCE["lead_frames"])),
+                        str(file) if file else None, c.get("source"), c.get("license"), tuple(c["trim"]) if c.get("trim") else None))
     return cues
 
 
@@ -124,6 +142,31 @@ def room(samples, rng, rt60, wet, lowpass_hz=None):
     if lowpass_hz:
         out = signal.sosfilt(signal.butter(2, lowpass_hz, fs=RATE, output="sos"), out)
     return out
+
+
+def loudest_sample(samples):
+    width = round(RATE * HIT_WINDOW_SECONDS)
+    energy = np.convolve(np.square(samples), np.ones(width) / width, mode="same")
+    return int(np.argmax(energy))
+
+
+def load_file(cue):
+    """A real sound-effect file, folded to mono at 48 kHz so it pans and passes the mono check like synthesized cues."""
+    command = [FFMPEG, "-v", "error"]
+    if cue.trim:
+        command += ["-ss", f"{cue.trim[0]:.4f}", "-to", f"{cue.trim[1]:.4f}"]
+    command += ["-i", cue.file, "-ac", "1", "-ar", str(RATE), "-f", "f32le", "-"]
+    samples = np.frombuffer(subprocess.run(command, check=True, capture_output=True).stdout, dtype=np.float32).astype(np.float64)
+    if len(samples) < round(RATE * 0.02):
+        raise ValueError(f"{cue.id}: {cue.file} is shorter than 20 ms")
+    samples = fade_edges(samples - float(np.mean(samples)), 0.8, 15)
+    maximum = float(np.max(np.abs(samples)))
+    if not math.isfinite(maximum) or maximum <= 1e-8:
+        raise ValueError(f"{cue.id}: {cue.file} is silent")
+    samples /= maximum
+    if cue.family == "ambience":
+        return samples, min(round(cue.lead_frames / FRAME_RATE * RATE), len(samples) - 1)
+    return samples, loudest_sample(samples)
 
 
 def synthesize(cue, material, rng):
@@ -190,8 +233,7 @@ def synthesize(cue, material, rng):
     if not math.isfinite(maximum) or maximum <= 1e-8:
         raise ValueError(f"Invalid synthesis for {cue.id}")
     samples /= maximum
-    energy = np.convolve(np.square(samples), np.ones(round(RATE * 0.004)) / round(RATE * 0.004), mode="same")
-    hit_sample = int(np.argmax(energy))
+    hit_sample = loudest_sample(samples)
     if cue.family == "ambience":
         expected = round(cue.lead_frames / FRAME_RATE * RATE)
         if not 0 <= hit_sample - expected <= round(0.08 * RATE):
@@ -203,7 +245,7 @@ def synthesize(cue, material, rng):
 def build(plan_path, timeline_path, out_dir, name, material="digital", allow_repeats=False, max_cues=None):
     timeline = json.loads(Path(timeline_path).read_text())
     plan = json.loads(Path(plan_path).read_text())
-    cues = resolve(plan, timeline)
+    cues = resolve(plan, timeline, Path(plan_path).parent)
     out = Path(out_dir)
     if (out / f"{name}.mp4").resolve() == Path(timeline["picture"]).resolve():
         raise SystemExit(f"--name {name} would overwrite the picture. Use a different name, e.g. {name}_final.")
@@ -225,7 +267,7 @@ def build(plan_path, timeline_path, out_dir, name, material="digital", allow_rep
     records = []
     for cue in cues:
         seed = int.from_bytes(hashlib.sha256((cue.id + material).encode()).digest()[:4], "little")
-        raw, hit_sample = synthesize(cue, material, np.random.default_rng(seed))
+        raw, hit_sample = load_file(cue) if cue.file else synthesize(cue, material, np.random.default_rng(seed))
         scheduled_hit = round(cue.hit_frame / FRAME_RATE * RATE)
         start = scheduled_hit - hit_sample
         end = start + len(raw)
@@ -256,7 +298,9 @@ def build(plan_path, timeline_path, out_dir, name, material="digital", allow_rep
             "start_sample": start, "start_seconds": round(start / RATE, 6), "end_seconds": round(end / RATE, 6),
             "applied_gain_db": round(gain_db, 4), "voice_window_rms_dbfs": round(reference_db, 3),
             "pan": cue.pan, "pan_end": cue.pan_end, "gap_db": cue.gap_db, "material": material,
-            "reason": cue.reason, "seed": seed, "provenance": "Original deterministic local synthesis. No samples or external generators.",
+            "reason": cue.reason, "seed": None if cue.file else seed,
+            "provenance": f"File {cue.file} from {cue.source}" if cue.file else "Original deterministic local synthesis. No samples or external generators.",
+            "source_file": cue.file, "source": cue.source, "license": cue.license,
         })
     wavfile.write(bank / "effects.wav", RATE, effects.astype(np.float32))
     gain_db = -0.35
