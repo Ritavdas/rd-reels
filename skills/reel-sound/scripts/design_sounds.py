@@ -8,7 +8,8 @@ Cue plan (JSON list). Each cue:
   {"id": "hook_tap", "family": "confirm", "at": {"beat": "face_hook", "offset": 15},
    "frames": 6, "pan": 0.0, "pan_end": null, "gap_db": 12, "reason": "Hook lands the prompt."}
 "at" is either {"beat": NAME, "offset": FRAMES} (offset from the beat start), {"mark": NAME, "offset": FRAMES},
-or {"frame": N}. Families: confirm, tap, reject, release, slide, marker, counter, bloom, ambience.
+or {"frame": N}. Families: confirm, tap, reject, release, marker, counter, bloom, ambience.
+"slide" was removed: it is a whoosh, and whooshes are banned (see check_audio.BANNED_FAMILIES).
 For "ambience" (an off-screen world-sound J-cut) the hit is the cut frame, "frames" is total length, and
 "lead" (frames, default 12) is how early it starts before the cut.
 
@@ -26,12 +27,12 @@ import numpy as np
 from scipy import signal
 from scipy.io import wavfile
 
-from check_audio import FRAME_RATE, RATE, inspect_bank, level, stereo_pcm
+from check_audio import BANNED_FAMILIES, FRAME_RATE, RATE, inspect_bank, level, stereo_pcm
 
 FFMPEG = "/opt/homebrew/bin/ffmpeg"
 ROOM = {"rt60": 0.32, "wet": 0.22}
 AMBIENCE = {"rt60": 1.1, "wet": 0.55, "lowpass_hz": 2800, "level_dbfs": -40.0, "lead_frames": 12}
-FAMILIES = ("confirm", "tap", "reject", "release", "slide", "marker", "counter", "bloom", "ambience")
+FAMILIES = ("confirm", "tap", "reject", "release", "marker", "counter", "bloom", "ambience")
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,8 @@ def resolve(plan, timeline):
         else:
             base = 0
         hit = base + int(where.get("offset", where.get("frame", 0)))
+        if c["family"] in BANNED_FAMILIES:
+            raise ValueError(f"{c['id']}: family {c['family']} is banned ({BANNED_FAMILIES[c['family']]})")
         if c["family"] not in FAMILIES:
             raise ValueError(f"{c['id']}: unknown family {c['family']}")
         cues.append(Cue(c["id"], c["family"], hit, int(c["frames"]), float(c.get("pan", 0.0)), float(c.get("gap_db", 12)),
@@ -131,17 +134,6 @@ def synthesize(cue, material, rng):
     t = np.arange(count) / RATE
     if cue.family in ("tap", "confirm", "reject", "release"):
         samples = modal_tap(rng, count, material, cue.family)
-    elif cue.family == "slide":
-        texture = shaped_noise(rng, count, 280 if material == "paper" else 600, 2550 if material == "paper" else 3500)
-        p = np.linspace(0, 1, count)
-        movement = np.exp(-0.5 * ((p - 0.46) / 0.19) ** 2)
-        roughness = 0.82 + 0.12 * np.sin(2 * math.pi * 37 * t) + 0.06 * np.sin(2 * math.pi * 71 * t)
-        samples = texture * movement * roughness
-        landing = modal_tap(rng, round(RATE * 0.09), material)
-        index = round(count * 0.46)
-        available = min(len(landing), count - index)
-        samples[index:index + available] += landing[:available] * (0.25 if material == "paper" else 0.4)
-        samples = fade_edges(samples, 8, 25)
     elif cue.family == "marker":
         texture = shaped_noise(rng, count, 650, 2800 if material == "paper" else 3900)
         p = np.linspace(0, 1, count)
@@ -161,11 +153,21 @@ def synthesize(cue, material, rng):
             samples[start:start + available] += pulse[:available]
         samples = fade_edges(samples, 1, 16)
     elif cue.family == "bloom":
-        p = np.linspace(0, 1, count)
-        swell = np.sin(np.minimum(p / 0.35, 1) * math.pi / 2) ** 2 * np.exp(-np.maximum(p - 0.35, 0) * 5)
-        air = shaped_noise(rng, count, 300, 1400) * 0.35
-        tone = (np.sin(2 * math.pi * 196 * t) + 0.45 * np.sin(2 * math.pi * 294 * t + 0.6)) * 0.8
-        samples = fade_edges((air + tone) * swell, 25, 60)
+        # A soft strummed open chord (G3 D4 G4), plucked-string synthesis. It lands on the reveal frame;
+        # no swell, because a swell is a riser and risers are banned.
+        damping = 0.985 if material == "paper" else 0.995
+        samples = np.zeros(count)
+        for k, freq in enumerate((196.0, 293.66, 392.0)):
+            period = round(RATE / freq)
+            burst = np.zeros(count)
+            burst[:period] = signal.sosfilt(signal.butter(2, 3000 if material == "paper" else 5000, fs=RATE, output="sos"),
+                                            rng.uniform(-1, 1, period))
+            feedback = np.zeros(period + 2)
+            feedback[0], feedback[period], feedback[period + 1] = 1, -0.5 * damping, -0.5 * damping
+            note = signal.lfilter([1.0], feedback, burst)
+            delay = round(RATE * 0.018 * k)
+            samples[delay:] += note[:count - delay] * (1.0 - 0.18 * k)
+        samples = fade_edges(samples, 1, 60)
     elif cue.family == "ambience":
         lead = cue.lead_frames / FRAME_RATE
         bed = signal.sosfilt(signal.butter(2, [60, 500], btype="bandpass", fs=RATE, output="sos"), rng.standard_normal(count))

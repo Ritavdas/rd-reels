@@ -2,6 +2,7 @@
 import argparse
 import json
 import math
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -11,6 +12,9 @@ from scipy.io import wavfile
 RATE = 48000
 FRAME_RATE = 30
 FFMPEG = __import__("os").environ.get("FFMPEG", "/opt/homebrew/bin/ffmpeg")
+# Banned by the user as overused "template" sounds. The full list lives in sfx-ban
+# (~/.agents/skills/sfx-ban/banned.json); these are the reel-sound families it covers.
+BANNED_FAMILIES = {"slide": "a slide is a whoosh; play the move in silence or put a tap on the landing frame"}
 
 
 def command(args):
@@ -107,6 +111,8 @@ def baseline(path, output):
 def inspect_bank(manifest_path):
     manifest = json.loads(manifest_path.read_text())
     checks = []
+    banned = sorted({c["family"] for c in manifest["cues"] if c.get("family") in BANNED_FAMILIES})
+    assert not banned, f"Banned sound family used: {banned}"
     for cue in manifest["cues"]:
         rate, samples = wavfile.read(manifest_path.parent / cue["file"])
         assert rate == RATE, f"{cue['id']}: sample rate {rate}"
@@ -142,6 +148,21 @@ def inspect_bank(manifest_path):
         repeated = sorted({f for f in families if families.count(f) > 1})
         assert not repeated, f"Sound family used more than once: {repeated}"
     return checks
+
+
+def sfx_ban_scan(path):
+    """Listen for banned sound patterns with sfx-ban if it is installed. Warnings only: listen at each time."""
+    tool = shutil.which("sfx-ban")
+    if not tool:
+        return {"status": "not run: sfx-ban is not installed", "warnings": []}
+    result = subprocess.run([tool, "audio", str(path), "--json"], capture_output=True, text=True)
+    try:
+        warnings = json.loads(result.stdout or "[]")
+    except json.JSONDecodeError:
+        return {"status": f"not run: {result.stdout.strip() or result.stderr.strip()}", "warnings": []}
+    for w in warnings:
+        print(f"sfx-ban WARNING {w['t']:.2f}s {w['category']}: {w['detail']} (listen and replace if banned)")
+    return {"status": "ran", "warnings": warnings}
 
 
 def verify(final_path, baseline_path, manifest_path, output):
@@ -199,6 +220,10 @@ def verify(final_path, baseline_path, manifest_path, output):
         quiet_checks.append({"label": window["label"], "maximum_effect_amplitude": maximum})
     gate("intentional_quiet_windows", all(x["maximum_effect_amplitude"] == 0 for x in quiet_checks), quiet_checks)
 
+    banned = [c["id"] for c in manifest["cues"] if c.get("family") in BANNED_FAMILIES]
+    gate("no_banned_sounds", not banned, {"banned_family_cues": banned})
+    scan = sfx_ban_scan(final_path)
+
     pcm_size = len(mix)
     decoded_trim = decoded[:pcm_size].astype(np.float64)
     difference = decoded_trim - mix[:len(decoded_trim)].astype(np.float64)
@@ -211,6 +236,7 @@ def verify(final_path, baseline_path, manifest_path, output):
         "scope": "Technical gates only. A human listening review is still required.",
         "checks": checks,
         "cue_checks": cue_checks,
+        "banned_sound_scan": scan,
         "subjective_listening": "INCONCLUSIVE",
     }
     output.write_text(json.dumps(report, indent=2) + "\n")

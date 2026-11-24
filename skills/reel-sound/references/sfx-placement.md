@@ -7,13 +7,13 @@ answers "this beat has a visual event; which family, and where does `at` point?"
 ## How placement works
 `design_sounds.py` lines up each cue's loudest point with the frame in `at`. So `at` is the
 frame the eye lands on: the cut, the first visible frame of a card, the press, the final
-number. Do not shift `at` earlier to "start the whoosh early"; the slide already builds
-toward its peak. Ambience is the one exception: it uses `lead` to start before the cut.
+number. Do not shift `at` earlier to build up to the hit; nothing here builds up (risers are
+banned). Ambience is the one exception: it uses `lead` to start before the cut.
 
 ## Event to family
 | Visual event | Family | `at` points to | `frames` | `gap_db` |
 |-|-|-|-|-|
-| Clip, card or highlight moves across frame, swipe or push transition | `slide` | the frame the move lands | 10-16 | 10-12 |
+| Clip, card or highlight moves across frame, swipe or push transition | silence, or `tap` | the frame the move lands | 5-8 | 12-13 |
 | Text, card, sticker or icon appears | `tap` | first frame it is visible | 5-8 | 12-13 |
 | Positive result, check mark, "this works" | `confirm` | the frame the result appears | 5-8 | 11-13 |
 | Wrong answer, cross, "this fails" | `reject` | the frame the cross appears | 6-9 | 11-13 |
@@ -45,13 +45,14 @@ Voice, then cues, then music. Keep `gap_db` between 6 and 13 as SKILL.md says; u
 end only for a cue that must read over speech, and check the words afterwards (see
 "Inspect the rendered audio"). The final loudness gates in SKILL.md still apply.
 
-## No family yet
-These come up in saved references, but there is no synthesized family for them. Skip the
-cue or pick the nearest event above. Do not download a sample to fill the gap.
-- Riser into a drop (2 s build). Nearest: `bloom` on the reveal frame.
-- Hard impact or hit on a flash cut. Nearest: `slide` landing or `confirm`.
-- Glitch stutter. No substitute; leave it silent.
+## Banned
+The saved references below use these, but the user banned them (see the sfx-ban skill). Never
+add them, synthesize look-alikes, or download samples to fill the gap.
+- Riser / whoosh, including the old `slide` family. Use silence before the hit instead.
+- Impact / sub boom on a flash cut. Use `confirm` on the cut, or nothing.
+- Glitch stutter. Leave it silent.
 - Typing ticks per character. Use `counter` only if it reads as one short burst.
+- Chime / ding on a reveal. Use `bloom` (a soft plucked chord).
 
 ## Sources
 Placement rules taken from saved references (17 Nov 2026):

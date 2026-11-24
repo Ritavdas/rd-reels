@@ -27,7 +27,16 @@ that mix. Preserve the original picture duration, beat frames and quiet windows.
 - To pick the family and frame for a visual event (swipe, pop-up, count, reveal), read `references/sfx-placement.md`.
 
 ## Families
-confirm, tap, reject, release, slide, marker, counter, bloom, ambience. All are synthesized here. No downloaded effects.
+confirm, tap, reject, release, marker, counter, bloom, ambience. All are synthesized here. No downloaded effects.
+
+## Banned sounds
+The user banned overused "template" sounds everywhere: riser / whoosh, impact / sub boom, typing ticks,
+glitch stutter, chime / ding. The full list, aliases and replacements are in the sfx-ban skill
+(`~/.agents/skills/sfx-ban/SKILL.md`). Here that means:
+- There is no `slide` family. It was a whoosh. Play moves and swipes in silence, or put a `tap` on the landing frame.
+- `bloom` is a soft strummed chord that lands on the reveal frame. It no longer swells.
+- `counter` is one short burst on a count, never a tick per typed letter.
+- Never add a downloaded or generated effect from the banned list, under any name.
 `--material digital` (default) or `paper` changes the timbre of the whole set.
 
 ## Cue plan
@@ -69,7 +78,9 @@ a cleaner score alone is not approval. The strict improvement gate in reel-dialo
 proposed processing upgrades, not a requirement that adding an effect raise STOI.
 
 ## Gates (verify)
-Video stream unchanged. Same duration. -15.5 to -13.5 LUFS. True peak at or below -1 dBTP. No clipping. Dialogue PCM unchanged. Each cue lands on its frame. Quiet windows have no effects. Families are unique. Each declared hit matches the waveform.
+Video stream unchanged. Same duration. -15.5 to -13.5 LUFS. True peak at or below -1 dBTP. No clipping. Dialogue PCM unchanged. Each cue lands on its frame. Quiet windows have no effects. Families are unique. Each declared hit matches the waveform. No banned families.
+`verify` also runs `sfx-ban audio` on the final video when sfx-ban is installed and stores its warnings in `banned_sound_scan`. Warnings do not fail the gate: listen at each time, replace anything banned, and tell the user about any warning you leave.
+Then run `sfx-ban check <out> --render <out>/<name>_final.mp4`. It must exit 0.
 If any gate fails, fix the cause and run again. Don't report the sound as finished until the verdict is VERIFIED.
 
 ## What checks cannot prove
