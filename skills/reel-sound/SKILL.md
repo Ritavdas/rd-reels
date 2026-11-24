@@ -30,14 +30,16 @@ that mix. Preserve the original picture duration, beat frames and quiet windows.
 confirm, tap, reject, release, marker, counter, bloom, ambience. All are synthesized here. No downloaded effects.
 
 ## Banned sounds
-The user banned overused "template" sounds everywhere: riser / whoosh, impact / sub boom, typing ticks,
-glitch stutter, chime / ding. The full list, aliases and replacements are in the sfx-ban skill
-(`~/.agents/skills/sfx-ban/SKILL.md`). Here that means:
-- There is no `slide` family. It was a whoosh. Play moves and swipes in silence, or put a `tap` on the landing frame.
+The user banned stock, downloaded and AI-generated versions of overused sounds: riser / whoosh, impact /
+sub boom, typing, glitch stutter, chime / ding. Sounds we build ourselves are allowed, and every spot that
+would have used a banned sound gets a replacement, not a gap (silence only as a deliberate choice). The
+full list and the house library of our own sounds are in the sfx-ban skill (`~/.agents/skills/sfx-ban/SKILL.md`).
+Here that means:
+- Every family here is synthesized by this skill, so it counts as built by us. Never add a library, downloaded or generated file.
+- There is no `slide` family (user decision). Play moves and swipes in silence, or put a `tap` on the landing frame.
 - `bloom` is a soft strummed chord that lands on the reveal frame. It no longer swells.
-- `counter` is one short burst on a count, never a tick per typed letter.
-- Never add a downloaded or generated effect from the banned list, under any name.
-`--material digital` (default) or `paper` changes the timbre of the whole set.
+- Typed text gets the house typing sound (`~/.agents/sounds/house_sounds.py`, `keystrokes(times, chars)`) synced to
+  the letters, mixed under the voice like any cue. `counter` is for numbers counting, not typing.
 
 ## Cue plan
 Write `<out>/cues.json`. See `examples/asd_ste100_cues.json`.

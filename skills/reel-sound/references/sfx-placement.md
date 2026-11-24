@@ -46,13 +46,13 @@ end only for a cue that must read over speech, and check the words afterwards (s
 "Inspect the rendered audio"). The final loudness gates in SKILL.md still apply.
 
 ## Banned
-The saved references below use these, but the user banned them (see the sfx-ban skill). Never
-add them, synthesize look-alikes, or download samples to fill the gap.
-- Riser / whoosh, including the old `slide` family. Use silence before the hit instead.
-- Impact / sub boom on a flash cut. Use `confirm` on the cut, or nothing.
-- Glitch stutter. Leave it silent.
-- Typing ticks per character. Use `counter` only if it reads as one short burst.
-- Chime / ding on a reveal. Use `bloom` (a soft plucked chord).
+The saved references below use these. The user banned stock, downloaded and AI-generated versions
+(see the sfx-ban skill). Replace each one; never leave the spot empty by accident.
+- Riser / whoosh, including the old `slide` family: silence before the hit, or a `tap` on the landing frame.
+- Impact / sub boom on a flash cut: `confirm` on the cut, or the house tuned hit (`bass_stab_hit`).
+- Glitch stutter: deliberate silence.
+- Typing: the house typing sound (`keystrokes`), synced to each letter.
+- Chime / ding on a reveal: `bloom` (a soft plucked chord).
 
 ## Sources
 Placement rules taken from saved references (17 Nov 2026):
