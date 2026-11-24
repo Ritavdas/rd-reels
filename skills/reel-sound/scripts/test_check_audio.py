@@ -10,7 +10,7 @@ import numpy as np
 from scipy.io import wavfile
 
 from check_audio import FFMPEG, RATE, baseline, inspect_bank, pcm_float, stereo_pcm, verify
-from design_sounds import build
+from design_sounds import Cue, build, resolve, synthesize
 
 
 class AudioGateTests(unittest.TestCase):
@@ -74,6 +74,22 @@ class AudioGateTests(unittest.TestCase):
         self.write_manifest()
         with self.assertRaises(AssertionError):
             inspect_bank(self.manifest_path)
+
+    def test_banned_family_is_not_accepted(self):
+        self.manifest["cues"][0]["family"] = "slide"  # sfx-ban: ok
+        self.write_manifest()
+        with self.assertRaises(AssertionError):
+            inspect_bank(self.manifest_path)
+
+    def test_banned_family_is_rejected_in_the_plan(self):
+        plan = [{"id": "swipe", "family": "slide", "at": {"frame": 30}, "frames": 12}]  # sfx-ban: ok
+        with self.assertRaises(ValueError):
+            resolve(plan, {})
+
+    def test_bloom_lands_on_its_hit_without_a_swell(self):
+        cue = Cue("reveal", "bloom", 30, 16, 0.0, 12, "")
+        samples, hit = synthesize(cue, "digital", np.random.default_rng(1))
+        self.assertLess(hit / len(samples), 0.15)
 
     def test_phase_cancelled_mono_is_not_accepted(self):
         _, samples = wavfile.read(self.path / "tap.wav")
